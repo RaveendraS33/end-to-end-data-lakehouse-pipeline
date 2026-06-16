@@ -39,6 +39,18 @@ def kafka_producer() -> KafkaProducer:
     )
 
 
+@app.get("/")
+def root():
+    return {
+        "service": "Lakehouse Transaction API",
+        "status": "running",
+        "docs": "/docs",
+        "health": "/health",
+        "publish_sample": "POST /transactions/sample",
+        "note": "Opening /transactions/sample in a browser uses GET, so use the docs page or PowerShell curl to publish.",
+    }
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "topic": KAFKA_TOPIC}
@@ -64,3 +76,12 @@ def publish_sample_transaction():
         status=choice(["SUCCESS", "FAILED", "PENDING"]),
     )
     return publish_transaction(event)
+
+
+@app.get("/transactions/sample")
+def sample_transaction_help():
+    return {
+        "message": "This endpoint publishes only with POST.",
+        "try_docs": "http://localhost:8000/docs",
+        "powershell": "Invoke-RestMethod -Method Post -Uri http://localhost:8000/transactions/sample",
+    }
