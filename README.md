@@ -1,5 +1,7 @@
 # End-to-End Data Lakehouse Pipeline
 
+[![CI](https://github.com/RaveendraS33/end-to-end-data-lakehouse-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/RaveendraS33/end-to-end-data-lakehouse-pipeline/actions/workflows/ci.yml)
+
 An end-to-end data engineering portfolio project using Kafka, PySpark, Airflow, Apache Iceberg, MinIO, Trino, and Docker.
 
 ## Cost
@@ -48,6 +50,18 @@ flowchart LR
     M --- B
     A["Airflow DAG"] --> API
 ```
+
+## Proof
+
+This pipeline runs end-to-end; see [docs/VERIFICATION.md](docs/VERIFICATION.md)
+for reproducible command output (quality routing, materialized partitions,
+MERGE idempotency, integration tests, and the Airflow run). Screenshots:
+
+| Trino query | Streamlit dashboard |
+|---|---|
+| ![Trino query result](docs/screenshots/trino-query.png) | ![Streamlit dashboard](docs/screenshots/streamlit-dashboard.png) |
+| **Airflow DAG** | **MinIO warehouse** |
+| ![Airflow DAG run](docs/screenshots/airflow-dag.png) | ![MinIO bucket](docs/screenshots/minio-bucket.png) |
 
 ## Tech Stack
 
@@ -186,13 +200,18 @@ SELECT count(*) FROM iceberg.quality.transactions_clean WHERE transaction_id LIK
 
 ## Data Quality Rules
 
-A transaction is rejected when:
+The rules live in one place ([`src/quality/rules.py`](src/quality/rules.py)): the
+pure-Python validator is unit-tested, and the Spark job imports the same regex
+and allow-lists so the two cannot drift. A transaction is rejected when:
 
 - `transaction_id` is missing
 - `user_id` is missing
-- `email` is missing or invalid
+- `email` is missing or fails the email pattern (`^[^@\s]+@[^@\s]+\.[^@\s]+$`)
 - `amount` is missing or less than or equal to zero
 - `event_time` is missing
+- `event_time` is present but not a parseable ISO-8601 timestamp
+- `currency` is not one of `USD`, `EUR`, `GBP`
+- `status` is not one of `SUCCESS`, `FAILED`, `PENDING`
 
 Bad records are written to:
 
