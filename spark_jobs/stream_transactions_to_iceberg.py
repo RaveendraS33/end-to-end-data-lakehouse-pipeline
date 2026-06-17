@@ -1,7 +1,6 @@
 import logging
 import os
 
-from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, from_json
 
 from spark_jobs.lakehouse_common import (

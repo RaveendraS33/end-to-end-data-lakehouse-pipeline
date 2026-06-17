@@ -9,6 +9,7 @@ import os
 
 import pandas as pd
 import streamlit as st
+
 import trino
 
 TRINO_HOST = os.getenv("TRINO_HOST", "trino")

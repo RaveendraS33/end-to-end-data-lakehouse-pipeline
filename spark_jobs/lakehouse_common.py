@@ -22,8 +22,14 @@ from pyspark.sql.types import (
 )
 
 from src.quality.rules import (
+    ALLOWED_CURRENCIES,
+    ALLOWED_STATUSES,
+    EMAIL_REGEX,
     ERROR_INVALID_AMOUNT,
+    ERROR_INVALID_CURRENCY,
     ERROR_INVALID_EMAIL,
+    ERROR_INVALID_EVENT_TIME,
+    ERROR_INVALID_STATUS,
     ERROR_MISSING_EVENT_TIME,
     ERROR_MISSING_TRANSACTION_ID,
     ERROR_MISSING_USER_ID,
@@ -80,20 +86,25 @@ def add_quality_columns(records_df: DataFrame) -> DataFrame:
     Mirrors `src.quality.rules.validate_transaction`, expressed as Spark
     column logic so it runs in the cluster. The first failing rule wins.
     """
+    # Parsed event timestamp: used both for the parse-failure rule below and as
+    # the partition column on the clean table.
+    event_ts = to_timestamp(col("event_time"))
     return records_df.withColumn(
         "error_reason",
         when(col("transaction_id").isNull(), lit(ERROR_MISSING_TRANSACTION_ID))
         .when(col("user_id").isNull(), lit(ERROR_MISSING_USER_ID))
-        .when(col("email").isNull() | ~col("email").contains("@"), lit(ERROR_INVALID_EMAIL))
+        .when(col("email").isNull() | ~col("email").rlike(EMAIL_REGEX), lit(ERROR_INVALID_EMAIL))
         .when(col("amount").isNull() | (col("amount") <= 0), lit(ERROR_INVALID_AMOUNT))
         .when(col("event_time").isNull(), lit(ERROR_MISSING_EVENT_TIME))
+        .when(event_ts.isNull(), lit(ERROR_INVALID_EVENT_TIME))
+        .when(col("currency").isNull() | ~col("currency").isin(*ALLOWED_CURRENCIES), lit(ERROR_INVALID_CURRENCY))
+        .when(col("status").isNull() | ~col("status").isin(*ALLOWED_STATUSES), lit(ERROR_INVALID_STATUS))
         .otherwise(lit(VALID_REASON)),
     ).withColumn(
-        # Parsed event timestamp used for partition pruning on the clean table.
-        # Invalid/missing event_time yields null, which is fine: such rows are
-        # routed to the bad table (partitioned by processed_at instead).
+        # event_time that is missing or unparseable yields null here; those rows
+        # are routed to the bad table (partitioned by processed_at instead).
         "event_ts",
-        to_timestamp(col("event_time")),
+        event_ts,
     ).withColumn("processed_at", current_timestamp())
 
 
