@@ -39,6 +39,9 @@ TRANSACTION_SCHEMA = StructType(
     ]
 )
 
+CLEAN_TABLE = "lakehouse.quality.transactions_clean"
+BAD_TABLE = "lakehouse.quality.transactions_bad"
+
 
 def build_spark() -> SparkSession:
     return (
@@ -72,12 +75,69 @@ def add_quality_columns(records_df):
     ).withColumn("processed_at", current_timestamp())
 
 
+def create_tables(spark: SparkSession):
+    spark.sql("CREATE NAMESPACE IF NOT EXISTS lakehouse.raw")
+    spark.sql("CREATE NAMESPACE IF NOT EXISTS lakehouse.quality")
+    spark.sql(
+        f"""
+        CREATE TABLE IF NOT EXISTS {CLEAN_TABLE} (
+            transaction_id STRING,
+            user_id INT,
+            email STRING,
+            amount DOUBLE,
+            currency STRING,
+            status STRING,
+            event_time STRING,
+            kafka_timestamp TIMESTAMP,
+            processed_at TIMESTAMP
+        )
+        USING iceberg
+        """
+    )
+    spark.sql(
+        f"""
+        CREATE TABLE IF NOT EXISTS {BAD_TABLE} (
+            transaction_id STRING,
+            user_id INT,
+            email STRING,
+            amount DOUBLE,
+            currency STRING,
+            status STRING,
+            event_time STRING,
+            kafka_timestamp TIMESTAMP,
+            error_reason STRING,
+            processed_at TIMESTAMP
+        )
+        USING iceberg
+        """
+    )
+
+
+def write_quality_batch(batch_df, batch_id: int):
+    logger.info("Writing quality batch %s", batch_id)
+
+    batch_df.persist()
+    clean_batch = batch_df.filter(col("error_reason") == VALID_REASON).drop("error_reason")
+    bad_batch = batch_df.filter(col("error_reason") != VALID_REASON)
+
+    clean_count = clean_batch.count()
+    bad_count = bad_batch.count()
+    logger.info("Batch %s has %s clean records and %s bad records", batch_id, clean_count, bad_count)
+
+    if clean_count > 0:
+        clean_batch.writeTo(CLEAN_TABLE).append()
+
+    if bad_count > 0:
+        bad_batch.writeTo(BAD_TABLE).append()
+
+    batch_df.unpersist()
+
+
 def main():
     spark = build_spark()
     spark.sparkContext.setLogLevel("WARN")
 
-    spark.sql("CREATE NAMESPACE IF NOT EXISTS lakehouse.raw")
-    spark.sql("CREATE NAMESPACE IF NOT EXISTS lakehouse.quality")
+    create_tables(spark)
 
     kafka_df = (
         spark.readStream.format("kafka")
@@ -93,16 +153,10 @@ def main():
     ).select("record.*", "kafka_timestamp")
 
     quality_df = add_quality_columns(parsed_df)
-    clean_df = quality_df.filter(col("error_reason") == VALID_REASON).drop("error_reason")
-    bad_df = quality_df.filter(col("error_reason") != VALID_REASON)
 
-    clean_df.writeStream.format("iceberg").outputMode("append").option(
-        "checkpointLocation", "s3a://warehouse/checkpoints/transactions_clean"
-    ).toTable("lakehouse.quality.transactions_clean")
-
-    bad_df.writeStream.format("iceberg").outputMode("append").option(
-        "checkpointLocation", "s3a://warehouse/checkpoints/transactions_bad"
-    ).toTable("lakehouse.quality.transactions_bad")
+    quality_df.writeStream.foreachBatch(write_quality_batch).outputMode("append").option(
+        "checkpointLocation", "s3a://warehouse/checkpoints/transactions_quality_v2"
+    ).start()
 
     logger.info("Spark streaming job started for Kafka topic %s", KAFKA_TOPIC)
     spark.streams.awaitAnyTermination()

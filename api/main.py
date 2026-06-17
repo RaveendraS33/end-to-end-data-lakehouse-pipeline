@@ -47,6 +47,7 @@ def root():
         "docs": "/docs",
         "health": "/health",
         "publish_sample": "POST /transactions/sample",
+        "publish_bad_sample": "POST /transactions/sample-bad",
         "note": "Opening /transactions/sample in a browser uses GET, so use the docs page or PowerShell curl to publish.",
     }
 
@@ -78,10 +79,30 @@ def publish_sample_transaction():
     return publish_transaction(event)
 
 
+@app.post("/transactions/sample-bad")
+def publish_bad_sample_transaction():
+    event = TransactionEvent(
+        user_id=randint(1000, 9999),
+        email="invalid-email",
+        amount=-25.0,
+        status="FAILED",
+    )
+    return publish_transaction(event)
+
+
 @app.get("/transactions/sample")
 def sample_transaction_help():
     return {
         "message": "This endpoint publishes only with POST.",
         "try_docs": "http://localhost:8000/docs",
         "powershell": "Invoke-RestMethod -Method Post -Uri http://localhost:8000/transactions/sample",
+    }
+
+
+@app.get("/transactions/sample-bad")
+def bad_sample_transaction_help():
+    return {
+        "message": "This endpoint publishes an invalid transaction only with POST.",
+        "try_docs": "http://localhost:8000/docs",
+        "powershell": "Invoke-RestMethod -Method Post -Uri http://localhost:8000/transactions/sample-bad",
     }

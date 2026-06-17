@@ -56,6 +56,7 @@ flowchart LR
 - PySpark Structured Streaming for ingestion and validation
 - Apache Iceberg for lakehouse tables
 - MinIO as local S3-compatible object storage
+- Postgres as the local Iceberg REST catalog metadata database
 - Trino for SQL analytics
 - Airflow for orchestration
 - Docker Compose for reproducibility
@@ -98,6 +99,12 @@ Publish one sample event:
 curl -X POST http://localhost:8000/transactions/sample
 ```
 
+Publish one intentionally bad sample event:
+
+```powershell
+curl -X POST http://localhost:8000/transactions/sample-bad
+```
+
 Open service UIs:
 
 - FastAPI docs: http://localhost:8000/docs
@@ -123,6 +130,15 @@ Then:
 SELECT * FROM iceberg.quality.transactions_clean LIMIT 10;
 ```
 
+Check rejected records:
+
+```sql
+SELECT transaction_id, email, amount, error_reason, processed_at
+FROM iceberg.quality.transactions_bad
+ORDER BY processed_at DESC
+LIMIT 10;
+```
+
 ## Data Quality Rules
 
 A transaction is rejected when:
@@ -144,6 +160,8 @@ Clean records are written to:
 ```text
 iceberg.quality.transactions_clean
 ```
+
+The Iceberg REST catalog uses local Postgres instead of embedded SQLite so Spark writes and Trino queries can run more reliably during development.
 
 ## Tests
 
