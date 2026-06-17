@@ -9,3 +9,6 @@ plugins/
 output/
 .idea/
 .vscode/
+
+# Screenshot capture scratch file
+scripts/_trino_session.txt
