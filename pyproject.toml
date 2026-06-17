@@ -8,3 +8,6 @@ select = ["E", "W", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Put the repo root on sys.path so `import src...` resolves under a bare
+# `pytest` invocation (CI), not just `python -m pytest` which adds the cwd.
+pythonpath = ["."]
