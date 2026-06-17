@@ -119,6 +119,14 @@ Airflow is optional because it is heavier. Start it only when you are ready to t
 docker compose --profile orchestration up -d airflow
 ```
 
+The `transactions_backfill` DAG orchestrates the batch backfill: it launches the
+Spark backfill job as a sibling container via `DockerOperator`, so Airflow drives
+the same job you can also run by hand with `docker compose run --rm spark-backfill`.
+This works because the Airflow service mounts the host Docker socket and the Spark
+image is tagged `lakehouse-spark:local`. Build that image first (it is built when
+you start the `spark` service), then open Airflow at http://localhost:8088 and
+trigger the DAG.
+
 Run a Trino query:
 
 ```powershell

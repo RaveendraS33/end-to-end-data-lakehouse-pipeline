@@ -142,6 +142,7 @@ services:
     build:
       context: .
       dockerfile: spark_jobs/Dockerfile
+    image: lakehouse-spark:local
     container_name: lakehouse-spark
     depends_on:
       iceberg-rest:
@@ -171,6 +172,7 @@ services:
     build:
       context: .
       dockerfile: spark_jobs/Dockerfile
+    image: lakehouse-spark:local
     container_name: lakehouse-spark-backfill
     profiles:
       - tools
@@ -222,11 +224,19 @@ services:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/airflow.db
+      # Installed at container start so the backfill DAG can launch the Spark
+      # job via DockerOperator against the host Docker daemon.
+      _PIP_ADDITIONAL_REQUIREMENTS: apache-airflow-providers-docker
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      AWS_REGION: ${AWS_REGION}
     ports:
       - "8088:8080"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
+      # Lets the DockerOperator start the Spark backfill container as a sibling.
+      - /var/run/docker.sock:/var/run/docker.sock
     command: standalone
     networks:
       - lakehouse-net
@@ -237,4 +247,7 @@ volumes:
 
 networks:
   lakehouse-net:
+    # Fixed name so the backfill DAG's DockerOperator can attach the Spark
+    # container to this network deterministically (network_mode=lakehouse-net).
+    name: lakehouse-net
     driver: bridge

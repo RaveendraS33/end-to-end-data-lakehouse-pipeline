@@ -10,5 +10,6 @@ USER spark
 
 COPY spark_jobs ./spark_jobs
 COPY src ./src
+COPY seed ./seed
 
 ENV PYTHONPATH=/app
