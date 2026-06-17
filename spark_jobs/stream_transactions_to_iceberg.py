@@ -2,7 +2,7 @@ import logging
 import os
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, current_timestamp, from_json, lit, when
+from pyspark.sql.functions import col, current_timestamp, from_json, lit, to_timestamp, when
 from pyspark.sql.types import DoubleType, IntegerType, StringType, StructField, StructType
 
 from src.quality.rules import (
@@ -72,6 +72,12 @@ def add_quality_columns(records_df):
         .when(col("amount").isNull() | (col("amount") <= 0), lit(ERROR_INVALID_AMOUNT))
         .when(col("event_time").isNull(), lit(ERROR_MISSING_EVENT_TIME))
         .otherwise(lit(VALID_REASON)),
+    ).withColumn(
+        # Parsed event timestamp used for partition pruning on the clean table.
+        # Invalid/missing event_time yields null, which is fine: such rows are
+        # routed to the bad table (partitioned by processed_at instead).
+        "event_ts",
+        to_timestamp(col("event_time")),
     ).withColumn("processed_at", current_timestamp())
 
 
@@ -88,10 +94,12 @@ def create_tables(spark: SparkSession):
             currency STRING,
             status STRING,
             event_time STRING,
+            event_ts TIMESTAMP,
             kafka_timestamp TIMESTAMP,
             processed_at TIMESTAMP
         )
         USING iceberg
+        PARTITIONED BY (days(event_ts))
         """
     )
     spark.sql(
@@ -104,11 +112,13 @@ def create_tables(spark: SparkSession):
             currency STRING,
             status STRING,
             event_time STRING,
+            event_ts TIMESTAMP,
             kafka_timestamp TIMESTAMP,
             error_reason STRING,
             processed_at TIMESTAMP
         )
         USING iceberg
+        PARTITIONED BY (days(processed_at))
         """
     )
 
@@ -155,7 +165,7 @@ def main():
     quality_df = add_quality_columns(parsed_df)
 
     quality_df.writeStream.foreachBatch(write_quality_batch).outputMode("append").option(
-        "checkpointLocation", "s3a://warehouse/checkpoints/transactions_quality_v2"
+        "checkpointLocation", "s3a://warehouse/checkpoints/transactions_quality_v3"
     ).start()
 
     logger.info("Spark streaming job started for Kafka topic %s", KAFKA_TOPIC)
