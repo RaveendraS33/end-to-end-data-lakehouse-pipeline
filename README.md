@@ -70,6 +70,7 @@ end-to-end-data-lakehouse-pipeline/
 |-- configs/
 |-- docs/
 |-- queries/
+|-- seed/
 |-- spark_jobs/
 |-- src/quality/
 |-- tests/
@@ -139,6 +140,25 @@ ORDER BY processed_at DESC
 LIMIT 10;
 ```
 
+## Batch Backfill
+
+Streaming and batch ingestion share a single code path
+(`spark_jobs/lakehouse_common.py`), so historical data is validated and routed
+exactly like live events. Replay a file of historical transactions into the same
+Iceberg tables with a one-shot job (the stack must already be running):
+
+```powershell
+docker compose run --rm spark-backfill
+```
+
+It reads newline-delimited JSON from `seed/backfill_sample.jsonl` (override with
+the `BACKFILL_PATH` environment variable), applies the data quality rules, and
+appends clean and bad rows to the partitioned tables. Verify in Trino:
+
+```sql
+SELECT count(*) FROM iceberg.quality.transactions_clean WHERE transaction_id LIKE 'bf-%';
+```
+
 ## Data Quality Rules
 
 A transaction is rejected when:
@@ -202,7 +222,7 @@ WHERE event_ts >= TIMESTAMP '2026-06-01 00:00:00'
 
 ## Roadmap
 
-- Add batch backfill job
+- ~~Add batch backfill job~~ (shipped)
 - Add incremental merge/upsert logic
 - ~~Add partitioning strategy by event date~~ (shipped)
 - Add dashboard with Superset or Streamlit

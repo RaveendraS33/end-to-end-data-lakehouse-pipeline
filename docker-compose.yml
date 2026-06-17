@@ -167,6 +167,37 @@ services:
     networks:
       - lakehouse-net
 
+  spark-backfill:
+    build:
+      context: .
+      dockerfile: spark_jobs/Dockerfile
+    container_name: lakehouse-spark-backfill
+    profiles:
+      - tools
+    depends_on:
+      iceberg-rest:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+      AWS_REGION: ${AWS_REGION}
+      BACKFILL_PATH: /app/seed/backfill_sample.jsonl
+    volumes:
+      - ./spark_jobs:/app/spark_jobs
+      - ./src:/app/src
+      - ./seed:/app/seed
+    command:
+      [
+        "/opt/spark/bin/spark-submit",
+        "--packages",
+        "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.6,org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.5.2,org.apache.iceberg:iceberg-aws-bundle:1.5.2,org.apache.hadoop:hadoop-aws:3.3.4",
+        "spark_jobs/backfill_transactions.py"
+      ]
+    networks:
+      - lakehouse-net
+
   trino:
     image: trinodb/trino:latest
     container_name: lakehouse-trino

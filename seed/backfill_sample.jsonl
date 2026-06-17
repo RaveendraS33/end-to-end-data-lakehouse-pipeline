@@ -1,0 +1,8 @@
+{"transaction_id": "bf-0001", "user_id": 1001, "email": "alice@example.com", "amount": 120.50, "currency": "USD", "status": "SUCCESS", "event_time": "2026-06-01T09:15:00+00:00"}
+{"transaction_id": "bf-0002", "user_id": 1002, "email": "bob@example.com", "amount": 42.00, "currency": "USD", "status": "SUCCESS", "event_time": "2026-06-01T11:42:30+00:00"}
+{"transaction_id": "bf-0003", "user_id": 1003, "email": "carol@example.com", "amount": 318.75, "currency": "EUR", "status": "PENDING", "event_time": "2026-06-02T14:05:10+00:00"}
+{"transaction_id": "bf-0004", "user_id": 1004, "email": "invalid-email", "amount": 55.00, "currency": "USD", "status": "FAILED", "event_time": "2026-06-02T16:20:00+00:00"}
+{"transaction_id": "bf-0005", "user_id": 1005, "email": "dave@example.com", "amount": -10.00, "currency": "USD", "status": "FAILED", "event_time": "2026-06-03T08:00:00+00:00"}
+{"transaction_id": "bf-0006", "user_id": 1006, "email": "erin@example.com", "amount": 200.00, "currency": "GBP", "status": "SUCCESS", "event_time": "2026-06-03T19:33:45+00:00"}
+{"transaction_id": "bf-0007", "user_id": null, "email": "frank@example.com", "amount": 75.25, "currency": "USD", "status": "SUCCESS", "event_time": "2026-06-04T07:10:00+00:00"}
+{"transaction_id": "bf-0008", "user_id": 1008, "email": "grace@example.com", "amount": 410.00, "currency": "USD", "status": "SUCCESS", "event_time": "2026-06-04T22:48:12+00:00"}
