@@ -200,6 +200,23 @@ services:
     networks:
       - lakehouse-net
 
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    container_name: lakehouse-dashboard
+    profiles:
+      - tools
+    depends_on:
+      - trino
+    environment:
+      TRINO_HOST: trino
+      TRINO_PORT: 8080
+    ports:
+      - "8501:8501"
+    networks:
+      - lakehouse-net
+
   trino:
     image: trinodb/trino:latest
     container_name: lakehouse-trino

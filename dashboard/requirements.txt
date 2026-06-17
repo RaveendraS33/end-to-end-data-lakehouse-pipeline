@@ -1,0 +1,3 @@
+streamlit==1.39.0
+trino==0.330.0
+pandas==2.2.3

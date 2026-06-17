@@ -67,7 +67,7 @@ flowchart LR
 end-to-end-data-lakehouse-pipeline/
 |-- api/
 |-- airflow/dags/
-|-- configs/
+|-- dashboard/
 |-- docs/
 |-- queries/
 |-- seed/
@@ -210,10 +210,34 @@ The Iceberg REST catalog uses local Postgres instead of embedded SQLite so Spark
 
 ## Tests
 
+Unit tests (data quality rules) run with no infrastructure:
+
 ```powershell
 pip install -r requirements-dev.txt
 python -m pytest tests
 ```
+
+Integration tests publish events through the API and assert they flow through
+Kafka -> Spark -> Iceberg and are queryable in Trino (clean routing, bad
+routing, and MERGE idempotency). They are skipped unless the stack is running
+and `RUN_INTEGRATION_TESTS=1` is set:
+
+```powershell
+docker compose up --build -d kafka minio minio-init iceberg-postgres iceberg-rest trino api spark
+$env:RUN_INTEGRATION_TESTS = "1"
+python -m pytest tests -m integration
+```
+
+## Dashboard
+
+A Streamlit dashboard reads the curated tables straight from Trino (headline
+metrics, status mix, rejection reasons, and daily volume):
+
+```powershell
+docker compose --profile tools up --build -d dashboard
+```
+
+Then open http://localhost:8501.
 
 ## Helper Scripts
 
@@ -250,5 +274,5 @@ WHERE event_ts >= TIMESTAMP '2026-06-01 00:00:00'
 - ~~Add batch backfill job~~ (shipped)
 - ~~Add incremental merge/upsert logic~~ (shipped)
 - ~~Add partitioning strategy by event date~~ (shipped)
-- Add dashboard with Superset or Streamlit
-- Add integration tests for Docker Compose
+- ~~Add dashboard with Superset or Streamlit~~ (shipped, Streamlit)
+- ~~Add integration tests for Docker Compose~~ (shipped)
