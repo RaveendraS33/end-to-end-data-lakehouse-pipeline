@@ -271,11 +271,11 @@ Then open http://localhost:8501.
 
 Iceberg tables are partitioned to enable partition pruning on time-range queries:
 
-- `transactions_clean` is partitioned by `days(event_ts)` — the parsed event
-  timestamp — so analytical queries that filter on an event-date range only scan
+- `transactions_clean` is partitioned by `days(event_ts)` - the parsed event
+  timestamp - so analytical queries that filter on an event-date range only scan
   the relevant day partitions.
-- `transactions_bad` is partitioned by `days(processed_at)` — the ingestion
-  timestamp — because a rejected record's `event_time` may itself be missing or
+- `transactions_bad` is partitioned by `days(processed_at)` - the ingestion
+  timestamp - because a rejected record's `event_time` may itself be missing or
   invalid (`missing_event_time` is one of the reject rules), which would otherwise
   collapse bad rows into a single null partition.
 
