@@ -140,6 +140,23 @@ ORDER BY processed_at DESC
 LIMIT 10;
 ```
 
+## Idempotent Upserts
+
+Clean records are written with an Iceberg `MERGE INTO` keyed on
+`transaction_id`, not a blind append. Incoming rows are first deduplicated
+(latest wins by `event_ts`, then `kafka_timestamp`), then merged: an existing
+transaction is updated in place and a new one is inserted. Re-delivered Kafka
+messages, overlapping backfills, and replayed batches therefore never create
+duplicate rows. Bad records are appended instead, since they form an audit log
+of rejections and may carry a null `transaction_id`.
+
+Verify there are no duplicates (`duplicate_rows` should be `0`):
+
+```sql
+SELECT count(*) - count(DISTINCT transaction_id) AS duplicate_rows
+FROM iceberg.quality.transactions_clean;
+```
+
 ## Batch Backfill
 
 Streaming and batch ingestion share a single code path
@@ -223,7 +240,7 @@ WHERE event_ts >= TIMESTAMP '2026-06-01 00:00:00'
 ## Roadmap
 
 - ~~Add batch backfill job~~ (shipped)
-- Add incremental merge/upsert logic
+- ~~Add incremental merge/upsert logic~~ (shipped)
 - ~~Add partitioning strategy by event date~~ (shipped)
 - Add dashboard with Superset or Streamlit
 - Add integration tests for Docker Compose

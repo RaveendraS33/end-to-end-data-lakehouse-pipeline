@@ -9,8 +9,8 @@ clean record is" in the Spark layer.
 import logging
 import os
 
-from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import col, current_timestamp, lit, to_timestamp, when
+from pyspark.sql import DataFrame, SparkSession, Window
+from pyspark.sql.functions import col, current_timestamp, lit, row_number, to_timestamp, when
 from pyspark.sql.types import (
     DoubleType,
     IntegerType,
@@ -137,8 +137,41 @@ def create_tables(spark: SparkSession) -> None:
     )
 
 
+def _merge_clean(clean_df: DataFrame) -> None:
+    """Idempotently upsert clean records into the clean table by transaction_id.
+
+    A given transaction_id may arrive more than once (Kafka redelivery, an
+    overlapping backfill, a replayed batch). We dedup the incoming rows first
+    -- keeping the latest by event_ts then kafka_timestamp -- because Iceberg
+    MERGE errors if multiple source rows match the same target row. The MERGE
+    then updates an existing row or inserts a new one, so re-running ingestion
+    never creates duplicates.
+    """
+    spark = clean_df.sparkSession
+    latest = Window.partitionBy("transaction_id").orderBy(
+        col("event_ts").desc_nulls_last(),
+        col("kafka_timestamp").desc_nulls_last(),
+    )
+    deduped = clean_df.withColumn("_rn", row_number().over(latest)).filter(col("_rn") == 1).drop("_rn")
+
+    deduped.createOrReplaceTempView("_clean_updates")
+    spark.sql(
+        f"""
+        MERGE INTO {CLEAN_TABLE} t
+        USING _clean_updates s
+        ON t.transaction_id = s.transaction_id
+        WHEN MATCHED THEN UPDATE SET *
+        WHEN NOT MATCHED THEN INSERT *
+        """
+    )
+
+
 def write_clean_and_bad(quality_df: DataFrame, label: str = "batch") -> tuple[int, int]:
-    """Split a quality-tagged DataFrame into the clean and bad Iceberg tables.
+    """Route a quality-tagged DataFrame into the clean and bad Iceberg tables.
+
+    Clean records are upserted by transaction_id (idempotent re-ingestion).
+    Bad records are appended -- they are an audit log of rejections, so
+    duplicates are acceptable and a bad row may have a null transaction_id.
 
     Returns (clean_count, bad_count). Shared by the streaming foreachBatch sink
     and the batch backfill job so both honour the same routing.
@@ -153,7 +186,7 @@ def write_clean_and_bad(quality_df: DataFrame, label: str = "batch") -> tuple[in
         logger.info("%s: %s clean records, %s bad records", label, clean_count, bad_count)
 
         if clean_count > 0:
-            clean_df.writeTo(CLEAN_TABLE).append()
+            _merge_clean(clean_df)
         if bad_count > 0:
             bad_df.writeTo(BAD_TABLE).append()
 
