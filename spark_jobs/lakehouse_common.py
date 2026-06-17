@@ -6,6 +6,8 @@ the batch backfill (`backfill_transactions.py`) apply *identical* rules and
 produce *identical* table layouts. There is exactly one definition of "what a
 clean record is" in the Spark layer.
 """
+from __future__ import annotations  # the Spark image runs Python 3.8; keep PEP 585 annotations lazy
+
 import logging
 import os
 

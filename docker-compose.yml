@@ -238,7 +238,9 @@ services:
     env_file:
       - .env
     environment:
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      # SequentialExecutor is the only executor compatible with the bundled
+      # SQLite metadata DB; sufficient for this single-task demo DAG.
+      AIRFLOW__CORE__EXECUTOR: SequentialExecutor
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: sqlite:////opt/airflow/airflow.db
       # Installed at container start so the backfill DAG can launch the Spark
